@@ -107,22 +107,31 @@ async function logout() {
 }
 
 async function loadData() {
-  const res = await fetch(`${API_BASE}/security-master`, { credentials: "include" });
-  const rows = await res.json();
-  const body = document.getElementById("tableBody");
-  body.innerHTML = "";
-  rows.forEach(r => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${r.isin ?? ""}</td>
-      <td>${r.name}</td>
-      <td>${r.asset_class ?? ""}</td>
-      <td>${r.currency ?? ""}</td>
-      <td>${r.exchange ?? ""}</td>
-      <td class="row-actions"><button onclick="deleteEntry(${r.id})">Löschen</button></td>
-    `;
-    body.appendChild(tr);
-  });
+  try {
+    const res = await fetch(`${API_BASE}/security-master`, { credentials: "include" });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert("Fehler beim Laden: " + (err.error || res.status));
+      return;
+    }
+    const rows = await res.json();
+    const body = document.getElementById("tableBody");
+    body.innerHTML = "";
+    rows.forEach(r => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${r.isin ?? ""}</td>
+        <td>${r.name}</td>
+        <td>${r.asset_class ?? ""}</td>
+        <td>${r.currency ?? ""}</td>
+        <td>${r.exchange ?? ""}</td>
+        <td class="row-actions"><button onclick="deleteEntry(${r.id})">Löschen</button></td>
+      `;
+      body.appendChild(tr);
+    });
+  } catch (err) {
+    alert("Verbindungsfehler beim Laden: " + err.message);
+  }
 }
 
 async function createEntry() {
@@ -133,13 +142,22 @@ async function createEntry() {
     currency: document.getElementById("currency").value,
     exchange: document.getElementById("exchange").value,
   };
-  await fetch(`${API_BASE}/security-master`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(body),
-  });
-  loadData();
+  try {
+    const res = await fetch(`${API_BASE}/security-master`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert("Fehler beim Speichern: " + (err.error || res.status));
+      return;
+    }
+    loadData();
+  } catch (err) {
+    alert("Verbindungsfehler beim Speichern: " + err.message);
+  }
 }
 
 async function deleteEntry(id) {
