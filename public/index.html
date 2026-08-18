@@ -43,23 +43,24 @@
   <button onclick="logout()">Abmelden</button>
 
   <h3>Neuer Eintrag</h3>
+  <input id="security_name" placeholder="Name (Pflichtfeld)" />
   <input id="isin" placeholder="ISIN" />
-  <input id="name" placeholder="Name" />
-  <input id="asset_class" placeholder="Asset Class" />
+  <input id="ticker" placeholder="Ticker" />
+  <input id="valor" placeholder="Valor" />
   <input id="currency" placeholder="Währung" />
-  <input id="exchange" placeholder="Börse" />
+  <input id="status" type="number" placeholder="Status" />
+  <input id="comments" placeholder="Kommentar" />
   <button onclick="createEntry()">Hinzufügen</button>
 
   <table id="table">
     <thead>
-      <tr><th>ISIN</th><th>Name</th><th>Asset Class</th><th>Währung</th><th>Börse</th><th></th></tr>
+      <tr><th>Name</th><th>ISIN</th><th>Ticker</th><th>Valor</th><th>Währung</th><th>Status</th><th></th></tr>
     </thead>
     <tbody id="tableBody"></tbody>
   </table>
 </div>
 
 <script>
-// Passe das auf deine tatsächliche Render-Backend-URL an
 const API_BASE = "/api";
 
 let pendingUserId = null;
@@ -67,20 +68,26 @@ let pendingUserId = null;
 async function login() {
   const username = document.getElementById("username").value;
   const password = document.getElementById("password").value;
-  const res = await fetch(`${API_BASE}/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ username, password }),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    document.getElementById("loginError").textContent = data.error;
-    return;
+  document.getElementById("loginError").textContent = "";
+  try {
+    const res = await fetch(`${API_BASE}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      document.getElementById("loginError").textContent = data.error;
+      return;
+    }
+    pendingUserId = data.userId;
+    document.getElementById("loginCard").classList.add("hidden");
+    document.getElementById("totpCard").classList.remove("hidden");
+  } catch (err) {
+    document.getElementById("loginError").textContent =
+      "Verbindungsfehler: " + err.message + " (API_BASE: " + API_BASE + ")";
   }
-  pendingUserId = data.userId;
-  document.getElementById("loginCard").classList.add("hidden");
-  document.getElementById("totpCard").classList.remove("hidden");
 }
 
 async function verifyTotp() {
@@ -120,12 +127,13 @@ async function loadData() {
     rows.forEach(r => {
       const tr = document.createElement("tr");
       tr.innerHTML = `
+        <td>${r.security_name ?? ""}</td>
         <td>${r.isin ?? ""}</td>
-        <td>${r.name}</td>
-        <td>${r.asset_class ?? ""}</td>
+        <td>${r.ticker ?? ""}</td>
+        <td>${r.valor ?? ""}</td>
         <td>${r.currency ?? ""}</td>
-        <td>${r.exchange ?? ""}</td>
-        <td class="row-actions"><button onclick="deleteEntry(${r.id})">Löschen</button></td>
+        <td>${r.status ?? ""}</td>
+        <td class="row-actions"><button onclick="deleteEntry(${r.security_id})">Löschen</button></td>
       `;
       body.appendChild(tr);
     });
@@ -136,11 +144,13 @@ async function loadData() {
 
 async function createEntry() {
   const body = {
+    security_name: document.getElementById("security_name").value,
     isin: document.getElementById("isin").value,
-    name: document.getElementById("name").value,
-    asset_class: document.getElementById("asset_class").value,
+    ticker: document.getElementById("ticker").value,
+    valor: document.getElementById("valor").value,
     currency: document.getElementById("currency").value,
-    exchange: document.getElementById("exchange").value,
+    status: document.getElementById("status").value || null,
+    comments: document.getElementById("comments").value,
   };
   try {
     const res = await fetch(`${API_BASE}/security-master`, {
