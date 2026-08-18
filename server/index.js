@@ -1,24 +1,24 @@
 import express from "express";
 import helmet from "helmet";
-import cors from "cors";
 import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
+import path from "path";
+import { fileURLToPath } from "url";
 import "dotenv/config";
 
 import { verifyPassword, verifyTotp, issueToken } from "./auth.js";
 import securityMasterRoutes from "./routes/securityMaster.js";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
-app.use(helmet());
+// Frontend und Backend laufen jetzt auf derselben Domain -> kein CORS/
+// Cross-Site-Cookie-Problem mehr (wichtig für Safari, das Cross-Site-
+// Cookies standardmäßig blockiert).
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json());
 app.use(cookieParser());
-app.use(
-  cors({
-    origin: process.env.ALLOWED_ORIGIN, // z.B. https://test.security... deine Render-URL
-    credentials: true,
-  })
-);
+app.use(express.static(path.join(__dirname, "..", "public")));
 
 // Brute-Force-Schutz auf Login
 const loginLimiter = rateLimit({
@@ -56,7 +56,7 @@ app.post("/api/verify-2fa", loginLimiter, async (req, res) => {
   res.cookie("session", jwtToken, {
     httpOnly: true,
     secure: true, // nur über HTTPS (Render erzwingt das automatisch)
-    sameSite: "strict",
+    sameSite: "lax",
     maxAge: 15 * 60 * 1000,
   });
   res.json({ success: true });
