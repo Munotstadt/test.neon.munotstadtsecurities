@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<title>Security Master Admin</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; }
+  h1 { font-size: 20px; }
+  input, button { font-size: 15px; padding: 8px; margin: 4px 0; }
+  input[type=text], input[type=password] { width: 100%; box-sizing: border-box; }
+  button { cursor: pointer; background: #111; color: #fff; border: none; border-radius: 6px; padding: 10px 16px; }
+  button:hover { background: #333; }
+  table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; font-size: 14px; }
+  .card { border: 1px solid #ddd; border-radius: 10px; padding: 24px; max-width: 360px; margin: 80px auto; }
+  .error { color: #c00; font-size: 14px; }
+  .hidden { display: none; }
+  .row-actions button { padding: 4px 8px; font-size: 12px; margin-right: 4px; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCHRITT 1 -->
+<div id="loginCard" class="card">
+  <h1>Anmelden</h1>
+  <input id="username" type="text" placeholder="Benutzername" />
+  <input id="password" type="password" placeholder="Passwort" />
+  <button onclick="login()">Weiter</button>
+  <p id="loginError" class="error"></p>
+</div>
+
+<!-- LOGIN SCHRITT 2: 2FA -->
+<div id="totpCard" class="card hidden">
+  <h1>2FA-Code eingeben</h1>
+  <input id="totpToken" type="text" placeholder="6-stelliger Code" maxlength="6" />
+  <button onclick="verifyTotp()">Bestätigen</button>
+  <p id="totpError" class="error"></p>
+</div>
+
+<!-- HAUPTANSICHT -->
+<div id="app" class="hidden">
+  <h1>Security Master</h1>
+  <button onclick="logout()">Abmelden</button>
+
+  <h3>Neuer Eintrag</h3>
+  <input id="isin" placeholder="ISIN" />
+  <input id="name" placeholder="Name" />
+  <input id="asset_class" placeholder="Asset Class" />
+  <input id="currency" placeholder="Währung" />
+  <input id="exchange" placeholder="Börse" />
+  <button onclick="createEntry()">Hinzufügen</button>
+
+  <table id="table">
+    <thead>
+      <tr><th>ISIN</th><th>Name</th><th>Asset Class</th><th>Währung</th><th>Börse</th><th></th></tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+</div>
+
+<script>
+// Passe das auf deine tatsächliche Render-Backend-URL an
+const API_BASE = "https://DEIN-BACKEND.onrender.com/api";
+
+let pendingUserId = null;
+
+async function login() {
+  const username = document.getElementById("username").value;
+  const password = document.getElementById("password").value;
+  const res = await fetch(`${API_BASE}/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ username, password }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    document.getElementById("loginError").textContent = data.error;
+    return;
+  }
+  pendingUserId = data.userId;
+  document.getElementById("loginCard").classList.add("hidden");
+  document.getElementById("totpCard").classList.remove("hidden");
+}
+
+async function verifyTotp() {
+  const token = document.getElementById("totpToken").value;
+  const res = await fetch(`${API_BASE}/verify-2fa`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ userId: pendingUserId, token }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    document.getElementById("totpError").textContent = data.error;
+    return;
+  }
+  document.getElementById("totpCard").classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+  loadData();
+}
+
+async function logout() {
+  await fetch(`${API_BASE}/logout`, { method: "POST", credentials: "include" });
+  location.reload();
+}
+
+async function loadData() {
+  const res = await fetch(`${API_BASE}/security-master`, { credentials: "include" });
+  const rows = await res.json();
+  const body = document.getElementById("tableBody");
+  body.innerHTML = "";
+  rows.forEach(r => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${r.isin ?? ""}</td>
+      <td>${r.name}</td>
+      <td>${r.asset_class ?? ""}</td>
+      <td>${r.currency ?? ""}</td>
+      <td>${r.exchange ?? ""}</td>
+      <td class="row-actions"><button onclick="deleteEntry(${r.id})">Löschen</button></td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+async function createEntry() {
+  const body = {
+    isin: document.getElementById("isin").value,
+    name: document.getElementById("name").value,
+    asset_class: document.getElementById("asset_class").value,
+    currency: document.getElementById("currency").value,
+    exchange: document.getElementById("exchange").value,
+  };
+  await fetch(`${API_BASE}/security-master`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(body),
+  });
+  loadData();
+}
+
+async function deleteEntry(id) {
+  if (!confirm("Wirklich löschen?")) return;
+  await fetch(`${API_BASE}/security-master/${id}`, { method: "DELETE", credentials: "include" });
+  loadData();
+}
+</script>
+</body>
+</html>

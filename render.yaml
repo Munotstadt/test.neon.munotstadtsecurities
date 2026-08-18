@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: security-master-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        sync: false   # manuell in Render eintragen (Neon Connection String)
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ALLOWED_ORIGIN
+        sync: false   # z.B. https://test-security.onrender.com
+
+  - type: web
+    name: security-master-frontend
+    runtime: static
+    rootDir: public
+    buildCommand: ""
+    staticPublishPath: .
