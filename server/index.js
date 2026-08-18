@@ -12,6 +12,10 @@ import securityMasterRoutes from "./routes/securityMaster.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
+// Render läuft hinter einem Reverse-Proxy -> nötig für korrektes
+// Rate-Limiting und sichere Cookies
+app.set("trust proxy", 1);
+
 // Frontend und Backend laufen jetzt auf derselben Domain -> kein CORS/
 // Cross-Site-Cookie-Problem mehr (wichtig für Safari, das Cross-Site-
 // Cookies standardmäßig blockiert).
