@@ -16,6 +16,8 @@
   .error { color: #c00; font-size: 14px; }
   .hidden { display: none; }
   .row-actions button { padding: 4px 8px; font-size: 12px; margin-right: 4px; }
+  table input { width: 90px; font-size: 12px; padding: 4px; margin: 0; }
+  table th { white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -48,16 +50,28 @@
   <input id="ticker" placeholder="Ticker" />
   <input id="valor" placeholder="Valor" />
   <input id="currency" placeholder="Währung" />
+  <input id="collector" type="number" placeholder="Collector" />
+  <input id="dashboard_grouping" type="number" placeholder="Dashboard Grouping" />
+  <input id="instrument" type="number" placeholder="Instrument" />
+  <input id="portfolio_grouping" type="number" placeholder="Portfolio Grouping" />
+  <input id="date_launch" type="date" placeholder="Date Launch" />
+  <input id="date_terminated" type="date" placeholder="Date Terminated" />
   <input id="status" type="number" placeholder="Status" />
   <input id="comments" placeholder="Kommentar" />
   <button onclick="createEntry()">Hinzufügen</button>
 
+  <div style="overflow-x:auto;">
   <table id="table">
     <thead>
-      <tr><th>Name</th><th>ISIN</th><th>Ticker</th><th>Valor</th><th>Währung</th><th>Status</th><th></th></tr>
+      <tr>
+        <th>ID</th><th>Name</th><th>ISIN</th><th>Ticker</th><th>Valor</th><th>Währung</th>
+        <th>Collector</th><th>Dashboard Grp.</th><th>Instrument</th><th>Portfolio Grp.</th>
+        <th>Launch</th><th>Terminated</th><th>Status</th><th>Kommentar</th><th></th>
+      </tr>
     </thead>
     <tbody id="tableBody"></tbody>
   </table>
+  </div>
 </div>
 
 <script>
@@ -113,6 +127,12 @@ async function logout() {
   location.reload();
 }
 
+const FIELDS = [
+  "security_name", "isin", "ticker", "valor", "currency",
+  "collector", "dashboard_grouping", "instrument", "portfolio_grouping",
+  "date_launch", "date_terminated", "status", "comments",
+];
+
 async function loadData() {
   try {
     const res = await fetch(`${API_BASE}/security-master`, { credentials: "include" });
@@ -126,14 +146,27 @@ async function loadData() {
     body.innerHTML = "";
     rows.forEach(r => {
       const tr = document.createElement("tr");
+      tr.dataset.id = r.security_id;
+      const dateVal = v => (v ? String(v).slice(0, 10) : "");
       tr.innerHTML = `
-        <td>${r.security_name ?? ""}</td>
-        <td>${r.isin ?? ""}</td>
-        <td>${r.ticker ?? ""}</td>
-        <td>${r.valor ?? ""}</td>
-        <td>${r.currency ?? ""}</td>
-        <td>${r.status ?? ""}</td>
-        <td class="row-actions"><button onclick="deleteEntry(${r.security_id})">Löschen</button></td>
+        <td>${r.security_id}</td>
+        <td><input data-field="security_name" value="${r.security_name ?? ""}"></td>
+        <td><input data-field="isin" value="${r.isin ?? ""}"></td>
+        <td><input data-field="ticker" value="${r.ticker ?? ""}"></td>
+        <td><input data-field="valor" value="${r.valor ?? ""}"></td>
+        <td><input data-field="currency" value="${r.currency ?? ""}"></td>
+        <td><input data-field="collector" type="number" value="${r.collector ?? ""}"></td>
+        <td><input data-field="dashboard_grouping" type="number" value="${r.dashboard_grouping ?? ""}"></td>
+        <td><input data-field="instrument" type="number" value="${r.instrument ?? ""}"></td>
+        <td><input data-field="portfolio_grouping" type="number" value="${r.portfolio_grouping ?? ""}"></td>
+        <td><input data-field="date_launch" type="date" value="${dateVal(r.date_launch)}"></td>
+        <td><input data-field="date_terminated" type="date" value="${dateVal(r.date_terminated)}"></td>
+        <td><input data-field="status" type="number" value="${r.status ?? ""}"></td>
+        <td><input data-field="comments" value="${r.comments ?? ""}"></td>
+        <td class="row-actions">
+          <button onclick="saveEntry(${r.security_id}, this)">Speichern</button>
+          <button onclick="deleteEntry(${r.security_id})">Löschen</button>
+        </td>
       `;
       body.appendChild(tr);
     });
@@ -142,16 +175,42 @@ async function loadData() {
   }
 }
 
+function readRow(tr) {
+  const body = {};
+  FIELDS.forEach(f => {
+    const el = tr.querySelector(`[data-field="${f}"]`);
+    body[f] = el.value || null;
+  });
+  return body;
+}
+
+async function saveEntry(id, btn) {
+  const tr = btn.closest("tr");
+  const body = readRow(tr);
+  try {
+    const res = await fetch(`${API_BASE}/security-master/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert("Fehler beim Speichern: " + (err.error || res.status));
+      return;
+    }
+    btn.textContent = "Gespeichert ✓";
+    setTimeout(() => { btn.textContent = "Speichern"; }, 1500);
+  } catch (err) {
+    alert("Verbindungsfehler beim Speichern: " + err.message);
+  }
+}
+
 async function createEntry() {
-  const body = {
-    security_name: document.getElementById("security_name").value,
-    isin: document.getElementById("isin").value,
-    ticker: document.getElementById("ticker").value,
-    valor: document.getElementById("valor").value,
-    currency: document.getElementById("currency").value,
-    status: document.getElementById("status").value || null,
-    comments: document.getElementById("comments").value,
-  };
+  const body = {};
+  FIELDS.forEach(f => {
+    body[f] = document.getElementById(f).value || null;
+  });
   try {
     const res = await fetch(`${API_BASE}/security-master`, {
       method: "POST",
